@@ -40,6 +40,7 @@ class AutoYAMLDirective(Directive):
                                     self.content_offset - 1,
                                     location))
         self.record_dependencies.add(location)
+        print(self.result)
         node = nodes.paragraph()
         # parse comment internals as reST
         old_reporter = self.state.memo.reporter
@@ -53,15 +54,29 @@ class AutoYAMLDirective(Directive):
         with open(source, 'r') as src:
             lines = src.read().splitlines()
         in_docstring = False
+        in_parameter = False
         for linenum, line in enumerate(lines, start=1):
             if line.startswith(self.config.autoyaml_doc_delimiter):
                 in_docstring = True
+                # self._parse_line('', source, linenum)
                 self._parse_line(line, source, linenum, True)
+            elif line.startswith(self.config.autoyaml_doc_parameter) \
+                    and in_parameter:
+                in_parameter = True
+                self._parse_line('', source, linenum)
+                self._parse_parameter(line, source, linenum, True)
+            elif line.startswith(self.config.autoyaml_doc_parameter) \
+                    and in_docstring:
+                in_parameter = True
+                self._parse_line('', source, linenum)
+                self._parse_parameter(line, source, linenum)
             elif line.startswith(self.config.autoyaml_comment) \
                     and in_docstring:
+                self._parse_line('', source, linenum)
                 self._parse_line(line, source, linenum)
             else:
                 in_docstring = False
+                in_parameter = False
                 # add terminating newline
                 self._parse_line('', source, linenum)
 
@@ -75,9 +90,19 @@ class AutoYAMLDirective(Directive):
             docstring = docstring[1:]
         self.result.append(docstring, source, linenum)
 
+    def _parse_parameter(self, line, source, linenum, continuation=False):
+        if continuation:
+            docstring = line[2:]
+        else:
+            docstring = line[2:]
+        # strip preceding whitespace
+        # if docstring and docstring[0] == ' ':
+        #     docstring = docstring[1:]
+        self.result.append(docstring, source, linenum)
 
 def setup(app):
     app.add_directive('autoyaml', AutoYAMLDirective)
     app.add_config_value('autoyaml_root', '..', 'env')
     app.add_config_value('autoyaml_doc_delimiter', '###', 'env')
+    app.add_config_value('autoyaml_doc_parameter', '##', 'html')
     app.add_config_value('autoyaml_comment', '#', 'env')
